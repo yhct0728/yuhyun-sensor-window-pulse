@@ -10,7 +10,7 @@
 //   nodes:rx-tick / poll:next  →  Phase 2 (SQLite) + 폴링 워커에서 구현.
 // 현장-블라인드: 어떤 상태에도 현장(site) 필드가 없습니다.
 // ─────────────────────────────────────────────────────────────────────────────
-import React, { createContext, useContext, useCallback, useMemo, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import { receptionOf } from './reception.js';
 import { CHANNEL_TYPE_SEED } from './channelCatalog.js';
 import { resolveSensors } from './sensorModel.js';
@@ -35,6 +35,14 @@ const RANGES_KEY = 'pulse:channelRanges'; // 정상범위(raw 글리치 컷) 입
  *    지연/끊김 판정에만 쓰인다. 수집은 노드 설정과 상관없이 항상 이 주기로 돈다.
  */
 export const SYNC_INTERVAL_MS = 60_000;
+
+/**
+ * 수신 판정 재계산 주기(ms).
+ * 수신 상태(수신중/지연/끊김)는 **값이 안 바뀌어도 시간이 지나면 달라진다** —
+ * "마지막 수신이 얼마나 오래됐나"가 판정 기준이기 때문이다. 새로고침을 눌러야만
+ * 갱신되면 앱을 켜둔 채 끊긴 노드를 놓친다. 파일 IO 없는 순수 계산이라 저렴하다.
+ */
+export const RECEPTION_TICK_MS = 30_000;
 
 /** 채널 범위 맵 키 — { [rangeKey(nodeId,code)]: { min, max } }. 판정 아님(입력 보관용 키). */
 export function rangeKey(nodeId, channelCode) {
@@ -214,6 +222,25 @@ export function PulseProvider({ children }) {
   const [lastSyncAt, setLastSyncAt] = useState(null); // 마지막으로 파일을 확인한 시각(epoch ms). 미확인 null
   const [syncing, setSyncing] = useState(false);      // 전송 진행 중 — 버튼 중복 클릭 방지
   const [detectedFiles, setDetectedFiles] = useState([]);
+
+  // 수신 판정을 주기적으로 다시 계산해 시간에 따라 늙게 한다.
+  // 값(lastRx)이 그대로여도 "얼마나 오래됐나"는 계속 변하므로, 이게 없으면
+  // 앱을 켜둔 채 두었을 때 화면이 옛 판정에 멈춘다(끊긴 노드를 놓침).
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNodes((cur) => {
+        let changed = false;
+        const next = cur.map((n) => {
+          const rx = receptionOf(n.lastRx, n.intervalMin);
+          if (rx === n.reception) return n;
+          changed = true;
+          return { ...n, reception: rx };
+        });
+        return changed ? next : cur; // 바뀐 게 없으면 같은 배열 반환 → 불필요한 리렌더 방지
+      });
+    }, RECEPTION_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
   // 채널 타입은 "도감"(참조 마스터)이라 표준 계측기 종류로 시드합니다.
   // 런타임 데이터(nodes/detectedFiles)는 제로 디폴트 — 이건 사전(dictionary)이라 예외.
   const [channelTypes, setChannelTypes] = useState(() => CHANNEL_TYPE_SEED.map((t) => ({ ...t })));
@@ -517,9 +544,14 @@ export function PulseProvider({ children }) {
     const maxTs = rows[rows.length - 1].ts;
     setNodes((cur) => cur.map((n) => {
       if (n.id !== node.id) return n;
+      // ⚠️ 수신 갱신은 **전송 결과와 무관**하다. 파일에 새 값이 들어왔다는 사실 자체가 수신이다.
+      //    전송 성공에만 lastRx 를 걸면 백엔드 장애가 "센서 끊김"으로 둔갑한다.
+      //    (reception.js 원칙 — 수신과 전송은 별개 축)
+      const lastRx = Math.max(n.lastRx || 0, maxTs) || null;
+      const base = { ...n, lastRx, reception: receptionOf(lastRx, n.intervalMin) };
       return allOk
-        ? { ...n, lastSentTs: maxTs, lastRx: maxTs, transmit: 'sent', buffer: 0, rows24h: (n.rows24h || 0) + rows.length }
-        : { ...n, transmit: 'retry', buffer: (n.buffer || 0) + rows.length }; // 실패 → 워터마크 유지, 다음에 재시도
+        ? { ...base, lastSentTs: maxTs, transmit: 'sent', buffer: 0, rows24h: (n.rows24h || 0) + rows.length }
+        : { ...base, transmit: 'retry', buffer: (n.buffer || 0) + rows.length }; // 실패 → 워터마크 유지, 다음에 재시도
     }));
     return { ok: allOk, sent: allOk ? rows.length : 0 };
   }, []);
