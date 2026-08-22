@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Pulse — 글로벌 스타일 + 디자인 토큰 (CSS 변수)
+   라이트/다크 색상 토큰을 :root / .dark 두 곳에 정의합니다.
+   JS 에서 토큰이 필요할 땐 src/lib/theme.js 를 import 하세요.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* surfaces */
+  --color-bg:                 #ffffff;
+  --color-surface:            #ffffff;
+  --color-surface-muted:      rgba(244, 244, 245, 0.40);   /* zinc-100/40 */
+  --color-border:             #e4e4e7;                     /* zinc-200 */
+  --color-border-hover:       #d4d4d8;                     /* zinc-300 */
+
+  /* text */
+  --color-text:               #18181b;                     /* zinc-900 */
+  --color-text-muted:         #71717a;                     /* zinc-500 */
+  --color-text-subtle:        #a1a1aa;                     /* zinc-400 */
+
+  /* semantic */
+  --color-ok:                 #10b981;                     /* emerald-500 */
+  --color-warn:               #f59e0b;                     /* amber-500 */
+  --color-danger:             #ef4444;                     /* red-500 */
+  --color-info:               #71717a;                     /* zinc-500 */
+
+  /* radii / shadows */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.10);
+}
+
+.dark {
+  --color-bg:                 #09090b;                     /* zinc-950 */
+  --color-surface:            #18181b;                     /* zinc-900 */
+  --color-surface-muted:      rgba(24, 24, 27, 0.40);
+  --color-border:             #27272a;                     /* zinc-800 */
+  --color-border-hover:       #3f3f46;                     /* zinc-700 */
+
+  --color-text:               #fafafa;                     /* zinc-50 */
+  --color-text-muted:         #a1a1aa;                     /* zinc-400 */
+  --color-text-subtle:        #71717a;                     /* zinc-500 */
+
+  --color-ok:                 #34d399;                     /* emerald-400 */
+  --color-warn:               #fbbf24;                     /* amber-400 */
+  --color-danger:             #f87171;                     /* red-400 */
+  --color-info:               #a1a1aa;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system,
+    BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui,
+    sans-serif;
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── 진입 애니메이션 ──────────────────────────────────────────────────── */
+@keyframes pulse-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pulse-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── 스크롤바 ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.22);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 128, 0.4);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(180, 180, 200, 0.18);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 180, 200, 0.3);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* ─── Selection ────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(24, 24, 27, 0.12);
+}
+.dark ::selection {
+  background: rgba(250, 250, 250, 0.18);
+}

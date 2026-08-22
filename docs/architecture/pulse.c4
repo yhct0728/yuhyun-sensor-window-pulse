@@ -1,0 +1,153 @@
+/**
+ * Pulse 아키텍처 모델 (C4) — LikeC4 DSL
+ *
+ * 보기:
+ *   npm run arch         인터랙티브 웹뷰 (브라우저에서 클릭하며 줌인)
+ *   npm run arch:build   정적 사이트 생성 (docs/architecture/dist)
+ *
+ * 레벨 = "레고 설명서"처럼 위에서 아래로 분해:
+ *   Lv1 Context   → 시스템과 주변(사람·외부)
+ *   Lv2 Container → Pulse 내부 큰 덩어리(Renderer / Preload / Main / 저장)
+ *   Lv3 Component → 각 덩어리 안의 부품
+ *
+ * 왜 이렇게 정했나는 docs/decisions/(ADR), 무엇이 바뀌었나는 CHANGELOG.md.
+ */
+specification {
+  element actor {
+    style {
+      shape person
+    }
+  }
+  element system
+  element external {
+    style {
+      color gray
+    }
+  }
+  element container
+  element component
+  element store {
+    style {
+      shape cylinder
+      color slate
+    }
+  }
+
+  tag planned
+}
+
+model {
+
+  employee = actor '현장 직원' {
+    description '계측 데이터를 모니터링하고 이상치를 검토·등록한다'
+  }
+
+  thirdParty = external '타사 계측 시스템' {
+    description '센서 .txt 파일을 데이터 폴더에 주기적으로 덮어쓴다 (append 아님)'
+  }
+
+  dataFolder = store '데이터 폴더 (.txt)' {
+    description '타사가 .txt 를 떨구는 로컬 폴더. 원본은 읽기 전용.'
+  }
+
+  backend = external '회사 백엔드 API' {
+    #planned
+    description '검증된 계측 데이터 수신·저장 (Phase 4~5, 예정)'
+  }
+
+  pulse = system 'Pulse 데스크탑 앱' {
+    description '유현건설 계측 모니터링 — Electron 42 + React 18'
+
+    renderer = container 'Renderer (React UI)' {
+      technology 'React 18 · Vite'
+      description '화면 렌더링·사용자 상호작용. page state 기반 화면 전환.'
+
+      app = component 'App (라우팅)' {
+        description 'page state(dashboard·settings·node-detail) 전환, 다크모드·ToastHost'
+      }
+      dashboard = component 'Dashboard' {
+        description '현장/노드 목록, 감지된 파일·등록 흐름'
+      }
+      settings = component 'Settings' {
+        description '데이터 폴더 설정 (영속)'
+      }
+      nodeDetail = component 'NodeDetail' {
+        description '노드 시계열 차트·테이블, 이상치 시각화 (현재 더미)'
+      }
+      uiKit = component 'UI 디자인 시스템' {
+        description 'Button·Modal·Toast·Checkbox·Select·Table 등'
+      }
+      folderApi = component 'folderApi (브리지 래퍼)' {
+        description 'electronAPI 있으면 실제 IPC, 없으면 시뮬레이션 폴백(브라우저/테스트)'
+      }
+      dataLib = component 'mock / anomaly 라이브러리' {
+        description 'mockData·mockNodeData·anomalyDetection (더미 데이터·이상치 판정)'
+      }
+    }
+
+    preload = container 'Preload 브리지' {
+      technology 'Electron contextBridge (CJS)'
+      description 'window.electronAPI 노출 — contextIsolation 하의 유일한 통신 창구'
+    }
+
+    main = container 'Main 프로세스' {
+      technology 'Electron · Node (ESM)'
+      description '윈도우 생성(1440×900), IPC 핸들러 등록, 파일시스템 접근'
+
+      ipc = component 'IPC 핸들러 (folder:*)' {
+        description 'ipcMain.handle 7종 — get-default·get-root·set-root·reset-default·validate·pick·scan'
+      }
+      folderService = component 'folderService' {
+        description '데이터 폴더 관리·.txt 재귀 수집·인코딩/행수 분석·네이티브 폴더 선택'
+      }
+    }
+
+    config = store 'pulse-config.json' {
+      technology 'JSON (userData)'
+      description '선택한 데이터 폴더 경로 영속'
+    }
+  }
+
+  // ── 관계 (가장 낮은 레벨에 정의 → 상위 뷰는 자동 파생) ──────────────
+  employee -> renderer '모니터링 / 노드 등록'
+  thirdParty -> dataFolder '.txt 덮어쓰기'
+
+  folderApi -> preload 'window.electronAPI'
+  preload -> ipc 'ipcRenderer.invoke'
+  ipc -> folderService '위임'
+  folderService -> dataFolder '.txt 재귀 스캔 (읽기 전용)'
+  folderService -> config '경로 읽기 / 쓰기'
+  pulse -> backend '동기화 (예정)'
+
+  // Renderer 내부
+  app -> dashboard
+  app -> settings
+  app -> nodeDetail
+  dashboard -> folderApi '폴더 스캔·검증'
+  settings -> folderApi '폴더 설정·검증'
+  dashboard -> uiKit
+  nodeDetail -> dataLib '시계열·이상치'
+  dashboard -> dataLib '현장·센서 더미'
+}
+
+views {
+  view index {
+    title 'Lv1. Context — 시스템 전경'
+    include *
+  }
+
+  view ofPulse of pulse {
+    title 'Lv2. Container — Pulse 내부 구성'
+    include *
+  }
+
+  view ofRenderer of renderer {
+    title 'Lv3. Component — Renderer (화면)'
+    include *
+  }
+
+  view ofMain of main {
+    title 'Lv3. Component — Main 프로세스'
+    include *
+  }
+}
