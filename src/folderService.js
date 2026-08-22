@@ -620,6 +620,39 @@ export async function sendHeartbeat(p = {}) {
 }
 
 /**
+ * 계측 현황 보고를 지금 즉시 발송 (POST /api/pulse/v1/report).
+ *
+ * 정기 발송(매일 아침)을 기다리지 않고 **지금 상태를 디스코드·이메일로 공유**한다.
+ * 현황을 만드는 주체는 백엔드다 — 펄스는 자기 파일만 알지 전체 노드를 모르기 때문에
+ * (타사 PC 가 담당하는 노드 포함) 서버가 모아서 보내는 게 맞다.
+ * @returns {Promise<{ok:boolean, nodes?:number, live?:number, lost?:number, error?:string}>}
+ */
+export async function sendReport() {
+  const cfg = readConfig();
+  const base = (cfg.backendUrl || '').replace(/\/+$/, '');
+  if (!base || !cfg.apiKey) return { ok: false, error: 'unconfigured' };
+  const by = (cfg.pulseId || os.hostname() || 'pulse').slice(0, 50);
+  try {
+    const res = await fetch(base + PATHS.report, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [AUTH_HEADER]: cfg.apiKey },
+      body: JSON.stringify({ by }),
+    });
+    if (!res.ok) {
+      const error = res.status === 401 ? 'unauthorized' : `http_${res.status}`;
+      console.warn(`[pulse:report] → ${res.status} ${error}`);
+      return { ok: false, status: res.status, error };
+    }
+    const data = await res.json().catch(() => ({}));
+    console.log(`[pulse:report] 발송 완료 ::`, JSON.stringify(data));
+    return { ok: true, ...data };
+  } catch (err) {
+    console.warn(`[pulse:report] network: ${err?.message || err}`);
+    return { ok: false, error: 'network' };
+  }
+}
+
+/**
  * 센서 생명주기 상태 변경 (PATCH /api/pulse/v1/sensors/{sensor_code}).
  * status: 'active' | 'inactive'. inactive 는 sticky — 백엔드 평균·offline 추론에서 제외됨.
  * @param {{sensorCode, status}} p
@@ -672,5 +705,6 @@ export function registerFolderIpc() {
   ipcMain.handle('files:read-measurements', (_e, { fullPath, sinceTs } = {}) => readMeasurements(fullPath, sinceTs));
   ipcMain.handle('nodes:ingest', (_e, p) => ingestToBackend(p));
   ipcMain.handle('pulse:heartbeat', (_e, p) => sendHeartbeat(p));
+  ipcMain.handle('pulse:report', () => sendReport());
   ipcMain.handle('sensors:set-status', (_e, p) => setSensorStatus(p));
 }

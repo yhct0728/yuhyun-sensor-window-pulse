@@ -3,7 +3,7 @@
 //   헤더(자동 확인 상태 · 지금 전송 · 새로고침) + 탭(모니터링 / 감지·등록)
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, Timer, HelpCircle, Send } from 'lucide-react';
+import { RefreshCw, Timer, HelpCircle, Send, Megaphone } from 'lucide-react';
 import PageHeader from '../components/layout/PageHeader.jsx';
 import Button from '../components/ui/Button.jsx';
 import MonitorTab from '../components/nodes/MonitorTab.jsx';
@@ -11,6 +11,7 @@ import DetectRegisterTab from '../components/nodes/DetectRegisterTab.jsx';
 import StartGuide from '../components/onboarding/StartGuide.jsx';
 import { usePulse, SYNC_INTERVAL_MS } from '../lib/store.jsx';
 import { useTick } from '../hooks/useTick.js';
+import * as folderApi from '../lib/folderApi.js';
 import { timeAgo } from '../lib/format.js';
 import { showToast } from '../components/ui/Toast.jsx';
 
@@ -68,6 +69,26 @@ export default function NodeMonitor({ dark, setDark, onOpenNode, onRegister }) {
     else showToast('새로 보낼 측정값이 없습니다');
   };
 
+  // 현황 보고를 지금 디스코드·이메일로 발송. 정기 발송(매일 아침)을 기다리지 않고
+  // 지금 상태를 공유하고 싶을 때. 집계는 백엔드가 한다 — 펄스는 자기 파일만 알기 때문에
+  // 타사 PC 담당 노드까지 포함한 전체 현황은 서버만 만들 수 있다.
+  const [reporting, setReporting] = useState(false);
+  const handleReport = async () => {
+    if (reporting) return;
+    setReporting(true);
+    const r = await folderApi.sendReport();
+    setReporting(false);
+    if (r?.ok) {
+      showToast(`현황 보고 발송 · 노드 ${r.nodes ?? '?'}대 (정상 ${r.live ?? '?'} · 끊김 ${r.lost ?? '?'})`);
+    } else if (r?.error === 'unconfigured' || r?.error === 'no_electron') {
+      showToast('백엔드 미설정 — 설정에서 연결하세요');
+    } else if (r?.error === 'unauthorized') {
+      showToast('인증 실패(401) — API 키를 확인하세요');
+    } else {
+      showToast('현황 보고 발송 실패');
+    }
+  };
+
   const TABS = [
     { id: 'monitor', label: '모니터링' },
     { id: 'detect', label: '감지 · 등록', badge: unregistered || null },
@@ -97,6 +118,16 @@ export default function NodeMonitor({ dark, setDark, onOpenNode, onRegister }) {
             <Button variant="secondary" size="md" onClick={handleSyncNow} disabled={syncing}>
               <Send size={14} />
               지금 전송
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={handleReport}
+              disabled={reporting}
+              title="지금 상태를 디스코드·이메일로 보냅니다 (매일 아침 정기 발송과 같은 형식)"
+            >
+              <Megaphone size={14} />
+              현황 보고
             </Button>
             <Button variant="icon" size="iconMd" onClick={handleRefresh} title="새로고침">
               <RefreshCw size={15} />

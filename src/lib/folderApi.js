@@ -126,6 +126,17 @@ export async function sendHeartbeat(p) {
   return { ok: false, error: 'no_electron' };
 }
 
+/**
+ * 계측 현황 보고를 지금 즉시 디스코드·이메일로 발송 (POST /api/pulse/v1/report).
+ * 현황 집계는 백엔드가 한다 — 펄스는 자기 파일만 알기 때문.
+ * @returns {Promise<{ok:boolean, nodes?:number, live?:number, lost?:number, error?:string}>}
+ */
+export async function sendReport() {
+  const api = bridge();
+  if (api?.sendReport) return api.sendReport();
+  return { ok: false, error: 'no_electron' };
+}
+
 // ── 백엔드 연결 (노드 등록 실전송) ────────────────────────────────────────────
 /** 백엔드 설정 조회 — { url, hasKey } (키 값은 반환 안 함). */
 export async function getBackendConfig() {

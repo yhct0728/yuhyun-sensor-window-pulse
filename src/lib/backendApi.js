@@ -22,6 +22,7 @@ export const AUTH_HEADER = 'X-API-Key';
 /** 엔드포인트 경로 (base = 백엔드 URL + /api 기준 절대 경로). */
 export const PATHS = {
   heartbeat: '/api/pulse/v1/heartbeat',
+  report: '/api/pulse/v1/report', // 현황 보고 즉시 발송(디스코드·이메일)
   nodes: '/api/pulse/v1/nodes',
   status: '/api/pulse/v1/status',
   ingest: '/api/pulse/v1/ingest',
