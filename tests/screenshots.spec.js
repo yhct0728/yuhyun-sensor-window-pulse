@@ -38,9 +38,16 @@ function richMock(page, { guideSeen = true, nodesMode = 'full' } = {}) {
       resetToDefault: async () => 'C:\\pulse',
       validateFolder: async () => ({ exists: true, accessible: true, txtCount: FILES.length, error: null }),
       pickFolder: async () => null,
+      // periodEnd = 파일 안 마지막 데이터 시각 → 화면의 "마지막 수신"의 정본(ADR-0020).
+      //   없으면 미상(null)이라 전부 "끊김"으로 보인다. 파일 저장(mtime)은 그보다 조금 뒤 —
+      //   로거가 데이터를 쓰고 파일을 닫는 실제 순서와 같게.
       scanFolder: async () => FILES.map((f) => ({
         fileName: f.fileName, fullPath: 'C:\\pulse\\incoming\\' + f.fileName,
-        rowCount: 312, lastModified: new Date(now - f.agoMin * 60000).toISOString(), header, sampleRow: sample,
+        rowCount: 312,
+        lastModified: new Date(now - f.agoMin * 60000 + 30000).toISOString(),
+        periodStart: new Date(now - 30 * 86400000).toISOString(),
+        periodEnd: new Date(now - f.agoMin * 60000).toISOString(),
+        header, sampleRow: sample,
       })),
       analyzeFile: async () => ({ encoding: 'UTF-8', rowCount: 312, columnCount: 4, delimiter: '쉼표 (,)', intervalGuess: 60, preview: [header, sample] }),
       listNodes: async () => ({ ok: true, status: 200, nodes: nodesMode === 'empty' ? [] : nodes }),

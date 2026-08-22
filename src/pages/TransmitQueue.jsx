@@ -11,7 +11,7 @@ import EmptyState from '../components/ui/EmptyState.jsx';
 import { TxPill } from '../components/ui/StatusPill.jsx';
 import { usePulse } from '../lib/store.jsx';
 import { TX_RANK } from '../lib/reception.js';
-import { timeAgo, fmtNum } from '../lib/format.js';
+import { timeAgo, fmtNum, fmtDateTime } from '../lib/format.js';
 import { showToast } from '../components/ui/Toast.jsx';
 
 export default function TransmitQueue({ dark, setDark, onOpenNode }) {
@@ -123,7 +123,7 @@ export default function TransmitQueue({ dark, setDark, onOpenNode }) {
                     <td className="px-3 py-2.5 tabular-nums text-zinc-600 dark:text-zinc-300">{fmtNum(n.buffer, 0)}</td>
                     <td className="px-3 py-2.5 tabular-nums text-zinc-600 dark:text-zinc-300">{fmtNum(n.retry, 0)}</td>
                     <td className="px-3 py-2.5 tabular-nums text-zinc-600 dark:text-zinc-300">{fmtNum(n.rows24h, 0)}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{timeAgo(n.lastRx)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-zinc-500 dark:text-zinc-400 whitespace-nowrap"><span title={timeAgo(n.lastRx)}>{fmtDateTime(n.lastRx)}</span></td>
                     <td className="px-3 py-2.5">
                       {n.transmit !== 'sent' && (
                         <Button variant="secondary" size="sm" onClick={() => { retryNode(n.id); showToast(`${n.id} 재전송 요청`); }}>

@@ -14,7 +14,7 @@ import { usePulse, rangeKey } from '../../lib/store.jsx';
 import { seriesSummary } from '../../lib/series.js';
 import { sensorTypeLabel, DELETE_ERROR_MESSAGE, SENSOR_LIFECYCLE, lifecycleLabel, SENSOR_TYPES, sensorTypeUnit } from '../../lib/backendApi.js';
 import * as folderApi from '../../lib/folderApi.js';
-import { timeAgo, intervalLabel, fmtNum } from '../../lib/format.js';
+import { timeAgo, intervalLabel, fmtNum, fmtDateTime } from '../../lib/format.js';
 import { showToast } from '../ui/Toast.jsx';
 
 const TABS = [
@@ -191,8 +191,8 @@ export default function NodeDetailDrawer({ node, onClose }) {
           <div className="grid grid-cols-4 gap-2 mt-3">
             {[
               ['채널', node.series ? `프로파일 ${node.series.count}점` : `${node.chans.length}`],
-              ['마지막 데이터', timeAgo(node.lastRx), '.txt 안 마지막 줄의 시각 — 센서가 실제로 준 값'],
-              ['파일 저장', timeAgo(node.lastFileWrite), '로거가 이 파일을 마지막으로 건드린 시각(덮어쓰기 포함)'],
+              ['마지막 데이터', fmtDateTime(node.lastRx), `.txt 안 마지막 줄의 시각 — 센서가 실제로 준 값 (${timeAgo(node.lastRx)})`],
+              ['파일 저장', fmtDateTime(node.lastFileWrite), `로거가 이 파일을 마지막으로 건드린 시각 (${timeAgo(node.lastFileWrite)})`],
             ].map(([k, v, tip]) => (
               <div key={k} className="rounded-md bg-zinc-50 dark:bg-zinc-800/50 px-2.5 py-1.5" title={tip || undefined}>
                 <div className="text-[10.5px] text-zinc-400">{k}</div>
@@ -601,9 +601,9 @@ function TransmitPanel({ node, ingest, onRetry, onFlush }) {
 function DiagnosticLog({ node }) {
   // 제로 디폴트: 노드 상태에서 유도한 최소 이벤트만. 전체 타임라인은 진단 로그 페이지(추후).
   const events = [];
-  if (node.lastRx) events.push({ level: 'rx', text: `마지막 데이터 — ${timeAgo(node.lastRx)}` });
+  if (node.lastRx) events.push({ level: 'rx', text: `마지막 데이터 — ${fmtDateTime(node.lastRx)} (${timeAgo(node.lastRx)})` });
   else events.push({ level: 'lost', text: '이 파일에서 읽을 수 있는 데이터가 없습니다' });
-  if (node.lastFileWrite) events.push({ level: 'info', text: `파일 저장 — ${timeAgo(node.lastFileWrite)}` });
+  if (node.lastFileWrite) events.push({ level: 'info', text: `파일 저장 — ${fmtDateTime(node.lastFileWrite)} (${timeAgo(node.lastFileWrite)})` });
   // 로거는 파일을 계속 덮어쓰는데 안에 새 값이 없는 상태 — 센서/배선 쪽 의심 신호
   if (node.lastRx && node.lastFileWrite && node.lastFileWrite - node.lastRx > node.intervalMin * 3 * 60000) {
     events.push({ level: 'delayed', text: '파일은 계속 저장되는데 새 데이터가 없습니다 — 로거는 동작, 센서 값 유입이 끊긴 것으로 보입니다' });

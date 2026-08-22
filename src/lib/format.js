@@ -35,6 +35,28 @@ export function timeAgo(when, nowMs = Date.now()) {
   return `${day}일 전`;
 }
 
+/**
+ * 절대 시각 — 'YYYY-MM-DD HH:mm'. 입력은 epoch ms 또는 ISO 문자열.
+ *
+ * 상대시간("13일 전")만으로는 **언제인지**를 알 수 없다. 계측 보고에서는
+ * 다른 기록과 대조하거나 보고서에 옮겨 적어야 해서 절대 시각이 필요하다.
+ * 화면에서는 이걸 주(主)로 두고 timeAgo 를 보조로 함께 보여준다.
+ *
+ * 로컬 시각으로 출력한다 — 원본 .txt 의 시각 문자열에 타임존이 없어
+ * 벽시계 그대로 해석되기 때문에, 표시도 같은 기준이어야 어긋나지 않는다.
+ * @param {number|string|null} when
+ * @param {{withTime?: boolean}} [opts] withTime=false 면 날짜만
+ */
+export function fmtDateTime(when, { withTime = true } = {}) {
+  if (when == null) return '—';
+  const t = typeof when === 'number' ? when : Date.parse(when);
+  if (isNaN(t)) return '—';
+  const d = new Date(t);
+  const p = (n) => String(n).padStart(2, '0');
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return withTime ? `${date} ${p(d.getHours())}:${p(d.getMinutes())}` : date;
+}
+
 /** 주기(분) → 사람이 읽는 라벨. 60 → '1시간', 1440 → '1일' */
 export function intervalLabel(min) {
   if (min == null) return '—';

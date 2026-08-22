@@ -6,7 +6,7 @@ import React from 'react';
 import { MapPin } from 'lucide-react';
 import Sparkline from '../ui/Sparkline.jsx';
 import { RxPill, TxPill, TombstoneBadge, FormatErrorBadge } from '../ui/StatusPill.jsx';
-import { timeAgo, intervalLabel, fmtNum } from '../../lib/format.js';
+import { timeAgo, intervalLabel, fmtNum, fmtDateTime } from '../../lib/format.js';
 
 export default function NodeCardGrid({ nodes, onOpenNode }) {
   return (
@@ -61,7 +61,7 @@ export default function NodeCardGrid({ nodes, onOpenNode }) {
           </div>
 
           <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800 text-[11.5px] text-zinc-400">
-            <span className="tabular-nums">{intervalLabel(n.intervalMin)} · {timeAgo(n.lastRx)}</span>
+            <span className="tabular-nums">{intervalLabel(n.intervalMin)} · <span title={timeAgo(n.lastRx)}>{fmtDateTime(n.lastRx)}</span></span>
             <TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} />
           </div>
         </button>

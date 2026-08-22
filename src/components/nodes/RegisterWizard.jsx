@@ -16,7 +16,7 @@ import { FORMAT_TINT } from '../../lib/formatClassify.js';
 import { resolveSensors, defaultDepthCode } from '../../lib/sensorModel.js';
 import { SENSOR_TYPES, sensorTypeLabel, guessSensorType, sensorTypeUnit } from '../../lib/backendApi.js';
 import { SensorTypeIcon } from '../reference/sensorIcons.jsx';
-import { intervalLabel, fmtNum, timeAgo } from '../../lib/format.js';
+import { intervalLabel, fmtNum, timeAgo, fmtDateTime } from '../../lib/format.js';
 import { showToast } from '../ui/Toast.jsx';
 
 const STEPS = ['분석', '채널 매핑', '확인'];
@@ -458,7 +458,8 @@ function StepConfirm({ file, nodeId, sensors, intervalMin, sensorType, analysis,
           ['센서 수', sensorDesc],
           ['기록 간격', intervalLabel(intervalMin)],
           ['인코딩', analysis?.encoding || '—'],
-          ['마지막 수신', file?.modified ? timeAgo(file.modified) : '—'],
+          ['마지막 데이터', file?.dataEnd ? fmtDateTime(file.dataEnd) : '데이터 없음'],
+          ['파일 저장', file?.modified ? fmtDateTime(file.modified) : '—'],
         ].map(([k, v]) => (
           <div key={k} className="rounded-md bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2">
             <div className="text-[10.5px] text-zinc-400">{k}</div>

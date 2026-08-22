@@ -6,7 +6,7 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import Sparkline from '../ui/Sparkline.jsx';
 import { RxPill, TxPill, TombstoneBadge, FormatErrorBadge } from '../ui/StatusPill.jsx';
-import { timeAgo, intervalLabel } from '../../lib/format.js';
+import { timeAgo, intervalLabel, fmtDateTime } from '../../lib/format.js';
 import { sensorTypeLabel } from '../../lib/backendApi.js';
 
 const COLS = [
@@ -89,8 +89,11 @@ export default function NodeTable({ nodes, sort, onSort, onOpenNode }) {
               <td className="px-3 py-2.5 text-zinc-500 dark:text-zinc-400 whitespace-nowrap tabular-nums">
                 {intervalLabel(n.intervalMin)}
               </td>
+              {/* 절대 시각이 주(主) — 다른 기록과 대조하거나 보고서에 옮겨 적을 때 필요하다.
+                  상대시간은 "얼마나 오래됐나"가 한눈에 읽혀서 보조로 남긴다. */}
               <td className="px-3 py-2.5 text-zinc-500 dark:text-zinc-400 whitespace-nowrap tabular-nums">
-                {timeAgo(n.lastRx)}
+                <div className="leading-tight">{fmtDateTime(n.lastRx)}</div>
+                <div className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">{timeAgo(n.lastRx)}</div>
               </td>
               <td className="px-3 py-2.5"><TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} /></td>
               <td className="px-3 py-2.5 text-right">
