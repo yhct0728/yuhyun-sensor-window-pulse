@@ -29,6 +29,20 @@ module.exports = {
       config: {},
     },
   ],
+  publishers: [
+    {
+      // 새 버전을 GitHub Releases 로 올린다. `npm run publish` 한 줄로 배포.
+      //   설치본은 update.electronjs.org 를 통해 이 릴리스를 확인하고 자동 갱신한다.
+      //   ⚠️ 저장소가 **공개**여야 update.electronjs.org 가 읽을 수 있다.
+      //   토큰: 환경변수 GITHUB_TOKEN (repo 권한)
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: { owner: 'yhct0728', name: 'yuhyun-sensor-window-pulse' },
+        prerelease: false,
+        draft: false, // 즉시 공개 — draft 면 업데이트 서버가 못 본다
+      },
+    },
+  ],
   plugins: [
     {
       name: '@electron-forge/plugin-vite',

@@ -13,6 +13,7 @@ import Button from '../components/ui/Button.jsx';
 import { usePulse } from '../lib/store.jsx';
 import * as folderApi from '../lib/folderApi.js';
 import { showToast } from '../components/ui/Toast.jsx';
+import UpdateCard from '../components/settings/UpdateCard.jsx';
 
 export default function Settings({ dark, setDark }) {
   const { watchFolder, setWatchFolder, refreshFiles, isElectron } = usePulse();
@@ -223,6 +224,9 @@ export default function Settings({ dark, setDark }) {
               </div>
             </div>
           </section>
+
+          {/* 앱 업데이트 카드 */}
+          <UpdateCard isElectron={isElectron} />
 
           {!isElectron && (
             <div className="text-[11px] text-zinc-400 dark:text-zinc-500 flex items-start gap-1.5">

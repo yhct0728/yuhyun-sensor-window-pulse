@@ -28,4 +28,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readMeasurements: (fullPath, sinceTs) => ipcRenderer.invoke('files:read-measurements', { fullPath, sinceTs }),
   ingest: (payload) => ipcRenderer.invoke('nodes:ingest', payload),
   setSensorStatus: (sensorCode, status) => ipcRenderer.invoke('sensors:set-status', { sensorCode, status }),
+
+  // 자동 업데이트 (GitHub Releases). 설치본에서만 실동작 — 개발/미설치본은 unsupported.
+  getUpdateStatus: () => ipcRenderer.invoke('update:status'),
+  checkForUpdate: () => ipcRenderer.invoke('update:check'),
+  restartForUpdate: () => ipcRenderer.invoke('update:restart'),
 });

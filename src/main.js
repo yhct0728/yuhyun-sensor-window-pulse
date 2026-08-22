@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { registerFolderIpc } from './folderService.js';
+import { initAutoUpdate, registerUpdateIpc } from './updateService.js';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -34,9 +35,11 @@ const createWindow = () => {
     );
   }
 
-  // Open the DevTools in a detached window so the renderer keeps the full
-  // 1440px width (useful for verifying the §16 layout / console errors).
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // DevTools 는 **개발 중에만** 자동으로 연다. 자동 업데이트로 배포되는 설치본에서
+  // 매 실행마다 열리면 사용자에게 방해가 된다. (필요하면 Ctrl+Shift+I)
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 };
 
 // This method will be called when Electron has finished
@@ -44,7 +47,9 @@ const createWindow = () => {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   registerFolderIpc(); // 데이터 폴더 IPC 핸들러 등록
+  registerUpdateIpc(); // 자동 업데이트 IPC 핸들러 등록
   createWindow();
+  initAutoUpdate();    // 설치본에서만 동작 — 개발/미설치본이면 조용히 비활성
 
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.

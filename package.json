@@ -2,7 +2,7 @@
   "name": "pulse",
   "productName": "Pulse",
   "version": "1.1.0",
-  "description": "Pulse - Yuhyun sensor monitoring collector",
+  "description": "Pulse — 유현건설 계측 모니터링 수집기 (센서 .txt 감시 · 백엔드 증분 전송)",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -33,6 +33,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
     "@electron-forge/plugin-fuses": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
+    "@electron-forge/publisher-github": "^7.11.2",
     "@electron/fuses": "^1.8.0",
     "@playwright/test": "^1.60.0",
     "@vitejs/plugin-react": "^4.7.0",
@@ -48,6 +49,11 @@
     "lucide-react": "^1.16.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "update-electron-app": "^3.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yhct0728/yuhyun-sensor-window-pulse.git"
   }
 }
