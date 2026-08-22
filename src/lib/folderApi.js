@@ -111,6 +111,21 @@ export async function analyzeFile(fullPath) {
   return api.analyzeFile(fullPath);
 }
 
+/**
+ * 수집기 생존 신호를 백엔드로 보낸다 (POST /api/pulse/v1/heartbeat).
+ *
+ * **이 PC 가 죽으면 펄스 스스로는 아무것도 알릴 수 없다.** 그래서 살아있는 동안
+ * 계속 신호를 보내고, 서버가 그 침묵을 감지해 "수집기 응답 없음"을 알린다.
+ * 비-Electron 환경(브라우저 미리보기)에서는 무동작.
+ * @param {{status?:string, info?:object}} [p]
+ * @returns {Promise<{ok:boolean, error?:string}>}
+ */
+export async function sendHeartbeat(p) {
+  const api = bridge();
+  if (api?.sendHeartbeat) return api.sendHeartbeat(p);
+  return { ok: false, error: 'no_electron' };
+}
+
 // ── 백엔드 연결 (노드 등록 실전송) ────────────────────────────────────────────
 /** 백엔드 설정 조회 — { url, hasKey } (키 값은 반환 안 함). */
 export async function getBackendConfig() {

@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useRef, useState } from 'react';
 import { PulseProvider, usePulse, SYNC_INTERVAL_MS } from './lib/store.jsx';
+import * as folderApi from './lib/folderApi.js';
 import { useDarkMode } from './hooks/useDarkMode.js';
 import Sidebar from './components/layout/Sidebar.jsx';
 import NodeMonitor from './pages/NodeMonitor.jsx';
@@ -19,6 +20,10 @@ import Settings from './pages/Settings.jsx';
 import NodeDetailDrawer from './components/nodes/NodeDetailDrawer.jsx';
 import RegisterWizard from './components/nodes/RegisterWizard.jsx';
 import { ToastHost, showToast } from './components/ui/Toast.jsx';
+
+// 생존 신호 주기(ms). 서버의 오프라인 판정(기본 3분)보다 넉넉히 짧아야
+// 정상 동작 중에 오탐 알림이 뜨지 않는다.
+const HEARTBEAT_INTERVAL_MS = 60_000;
 
 function testParam() {
   if (typeof window === 'undefined') return null;
@@ -70,6 +75,17 @@ function Shell({ dark, setDark }) {
   syncRef.current = store.syncAll;
   useEffect(() => {
     const id = setInterval(() => { syncRef.current?.(); }, SYNC_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  // 생존 신호(heartbeat): 이 PC 가 살아있다고 서버에 계속 알린다.
+  //   **이 PC 가 죽으면 펄스 스스로는 아무것도 알릴 수 없다**(죽었으니까).
+  //   그래서 서버가 이 신호의 침묵을 감지해 "수집기 응답 없음"을 대신 알린다.
+  //   서버 판정 기준이 기본 3분(PULSE_OFFLINE_MINUTES)이므로 그보다 짧게 보낸다.
+  useEffect(() => {
+    const beat = () => { folderApi.sendHeartbeat({ status: 'online' }); };
+    beat(); // 앱 켜자마자 1회 — 재시작 직후 공백을 줄인다
+    const id = setInterval(beat, HEARTBEAT_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
 

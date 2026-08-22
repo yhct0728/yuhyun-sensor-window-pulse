@@ -11,7 +11,8 @@
 import { app, dialog, BrowserWindow, ipcMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { PATHS, AUTH_HEADER, nodeRegisterBody, nodeRangeBody, nodeMonitoringBody, nodeDeletePath, nodePath, intervalPatchBody, ingestBody, sensorStatusPath } from './lib/backendApi.js';
+import os from 'node:os';
+import { PATHS, AUTH_HEADER, heartbeatBody, nodeRegisterBody, nodeRangeBody, nodeMonitoringBody, nodeDeletePath, nodePath, intervalPatchBody, ingestBody, sensorStatusPath } from './lib/backendApi.js';
 
 // 기본적으로 .txt 파일만 데이터로 인식합니다. 확장이 필요하면 여기에 추가.
 const READ_EXTENSIONS = ['.txt'];
@@ -583,6 +584,42 @@ export async function ingestToBackend(p) {
 }
 
 /**
+ * 수집기 생존 신호 (POST /api/pulse/v1/heartbeat).
+ *
+ * 이걸 보내야 **이 PC 가 죽었을 때 서버가 알아챈다.** 펄스 스스로는 자기가 죽은 걸
+ * 알릴 수 없으므로(죽었으니까), 서버가 침묵을 감지하는 구조여야 한다.
+ * 백엔드 PulseMonitorService 가 last_seen 이 PULSE_OFFLINE_MINUTES(기본 3분) 넘게
+ * 끊기면 offline 으로 전이시키고 알림을 1회 발송한다.
+ *
+ * pulseId = 이 PC 를 구분하는 고정 이름. 설정값이 없으면 호스트명을 쓴다.
+ * @param {{status?:string, info?:object}} [p]
+ * @returns {Promise<{ok:boolean, status?:number, error?:string}>}
+ */
+export async function sendHeartbeat(p = {}) {
+  const cfg = readConfig();
+  const base = (cfg.backendUrl || '').replace(/\/+$/, '');
+  if (!base || !cfg.apiKey) return { ok: false, error: 'unconfigured' };
+  const pulseId = (cfg.pulseId || os.hostname() || 'pulse').slice(0, 50);
+  const body = heartbeatBody({ pulseId, status: p.status || 'online', info: p.info });
+  try {
+    const res = await fetch(base + PATHS.heartbeat, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [AUTH_HEADER]: cfg.apiKey },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const error = res.status === 401 ? 'unauthorized' : `http_${res.status}`;
+      console.warn(`[pulse:heartbeat] ${pulseId} → ${res.status} ${error}`);
+      return { ok: false, status: res.status, error };
+    }
+    return { ok: true, status: res.status, pulseId };
+  } catch (err) {
+    console.warn(`[pulse:heartbeat] network: ${err?.message || err}`);
+    return { ok: false, error: 'network' };
+  }
+}
+
+/**
  * 센서 생명주기 상태 변경 (PATCH /api/pulse/v1/sensors/{sensor_code}).
  * status: 'active' | 'inactive'. inactive 는 sticky — 백엔드 평균·offline 추론에서 제외됨.
  * @param {{sensorCode, status}} p
@@ -634,5 +671,6 @@ export function registerFolderIpc() {
   ipcMain.handle('nodes:list', () => listNodesFromBackend());
   ipcMain.handle('files:read-measurements', (_e, { fullPath, sinceTs } = {}) => readMeasurements(fullPath, sinceTs));
   ipcMain.handle('nodes:ingest', (_e, p) => ingestToBackend(p));
+  ipcMain.handle('pulse:heartbeat', (_e, p) => sendHeartbeat(p));
   ipcMain.handle('sensors:set-status', (_e, p) => setSensorStatus(p));
 }
