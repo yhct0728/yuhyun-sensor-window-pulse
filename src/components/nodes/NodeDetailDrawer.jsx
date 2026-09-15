@@ -570,8 +570,13 @@ function TransmitPanel({ node, ingest, onRetry, onFlush }) {
 
       <div className="flex items-center gap-2">
         <span className="text-[12px] text-zinc-500 dark:text-zinc-400">현재 전송 상태</span>
-        <TxPill transmit={node.transmit} count={node.transmit === 'queued' ? node.buffer : node.retry} />
+        <TxPill transmit={node.transmit} count={node.transmit === 'queued' ? node.buffer : node.retry} issue={node.txIssue} />
       </div>
+      {node.txIssue && (
+        <p className="text-[12px] text-red-600 dark:text-red-400">
+          {node.txIssue} — 이 노드는 백엔드로 전송되지 않고 있습니다.
+        </p>
+      )}
 
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2.5 flex items-center gap-2.5">
         <Wifi size={15} className="text-zinc-400 shrink-0" />

@@ -95,7 +95,7 @@ export default function NodeTable({ nodes, sort, onSort, onOpenNode }) {
                 <div className="leading-tight">{fmtDateTime(n.lastRx)}</div>
                 <div className="text-[11px] text-zinc-400 dark:text-zinc-500 leading-tight">{timeAgo(n.lastRx)}</div>
               </td>
-              <td className="px-3 py-2.5"><TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} /></td>
+              <td className="px-3 py-2.5"><TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} issue={n.txIssue} /></td>
               <td className="px-3 py-2.5 text-right">
                 <ChevronRight size={15} className="text-zinc-300 dark:text-zinc-600 inline" />
               </td>

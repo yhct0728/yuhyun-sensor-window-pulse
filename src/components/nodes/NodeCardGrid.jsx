@@ -62,7 +62,7 @@ export default function NodeCardGrid({ nodes, onOpenNode }) {
 
           <div className="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800 text-[11.5px] text-zinc-400">
             <span className="tabular-nums">{intervalLabel(n.intervalMin)} · <span title={timeAgo(n.lastRx)}>{fmtDateTime(n.lastRx)}</span></span>
-            <TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} />
+            <TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} issue={n.txIssue} />
           </div>
         </button>
       ))}

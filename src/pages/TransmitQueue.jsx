@@ -114,7 +114,7 @@ export default function TransmitQueue({ dark, setDark, onOpenNode }) {
                     key={n.id}
                     className={`border-t border-zinc-100 dark:border-zinc-800/70 ${n.transmit === 'failed' ? 'bg-red-50/50 dark:bg-red-950/20' : ''}`}
                   >
-                    <td className="px-3 py-2.5"><TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} /></td>
+                    <td className="px-3 py-2.5"><TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} issue={n.txIssue} /></td>
                     <td className="px-3 py-2.5 font-mono font-medium text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
                       <button onClick={() => onOpenNode?.(n.id)} className="hover:underline inline-flex items-center gap-1">
                         {n.id}<ChevronRight size={12} className="text-zinc-300 dark:text-zinc-600" />

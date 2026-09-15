@@ -192,6 +192,7 @@ function buildNode(p) {
     dataStart: p.dataStart ?? null, // 파일 안 첫 데이터 시각 — 수집 구간 표시용
     intervalMin,
     transmit: p.transmit || 'queued',
+    txIssue: null, // 전송 불가 사유(있으면 "전송 불가" 표시) — syncNode 가 채우고 지운다
     buffer: p.rows ?? 0,
     retry: 0,
     rows24h: 0,
@@ -390,6 +391,10 @@ export function PulseProvider({ children }) {
     // (저장 불필요 — 백엔드 ingest 가 완전 멱등이라 겹쳐 보내도 안전. 매핑은 파일에서 매번 재도출.)
     const incoming = await Promise.all(mine.map(async (n) => {
       const file = fileByCode.get(n.nodeId);
+      // 노드 대표 종류: 백엔드 개편(2026-06) 후 노드 응답엔 sensor_type 이 없고 채널에만 있다.
+      //   비어 있으면 syncNode 가 전송을 못 하고, 센서 구성(resolveSensors)도 종류에 따라 달라지므로
+      //   **센서 구성 계산 전에** 채널 종류 다수결로 채운다.
+      const sensorType = n.sensorType || pickRepresentativeType(n.channels || []);
       let sourceFile = '';
       let sensors = null;
       let series = null;
@@ -398,7 +403,7 @@ export function PulseProvider({ children }) {
         try {
           const analysis = await folderApi.analyzeFile(file.fullPath);
           if (analysis) {
-            const model = resolveSensors(analysis, { sensorType: n.sensorType, nodeId: n.nodeId });
+            const model = resolveSensors(analysis, { sensorType, nodeId: n.nodeId });
             sensors = model.sensors;
             series = model.series;
             // 백엔드의 실제 센서코드를 ingest 에 사용(센서코드의 정본=백엔드). 타입/약어가 바뀌어도
@@ -424,13 +429,13 @@ export function PulseProvider({ children }) {
       return buildNode({
         id: n.nodeId,
         name: n.name,
-        sensorType: n.sensorType,
+        sensorType,
         intervalMin: n.intervalMin ?? undefined,
         lastRx,
         lastFileWrite: Number.isFinite(writeMs) ? writeMs : null,
         dataStart: file?.dataStart ? Date.parse(file.dataStart) : null,
         channels: n.channels || [],
-        transmit: 'sent', // 백엔드에 이미 있는 노드 → 전송완료로 표시
+        // transmit 미지정 → 'queued'. 서버에 등록돼 있다는 것만으로 "전송 완료"가 아니다 — 첫 syncNode 가 판정.
         sourceFile,
         sensors,
         series,
@@ -460,8 +465,17 @@ export function PulseProvider({ children }) {
    * @returns {Promise<{ok:boolean, sent:number, error?:string, skipped?:boolean}>}
    */
   const syncNode = useCallback(async (node) => {
-    if (!node?.sourceFile || !node.sensorType || !Array.isArray(node.sensors) || !node.sensors.length) {
-      return { ok: false, sent: 0, skipped: true }; // 파일/센서모델 없는(예: 백엔드 조회) 노드는 전송 불가
+    // 전송 전제조건 — 못 갖췄으면 "전송 불가"와 이유를 남긴다. 조용히 건너뛰면 화면이 직전 상태
+    //   (예: 전송 완료)에 멈춰 아무도 모른다(2026-09 실사고: 종류가 빈 노드 5개가 멈춘 채 방치).
+    const issue = !node?.sourceFile ? '원본 파일 없음'
+      : !node.sensorType ? '계측기 종류 미지정'
+      : !(Array.isArray(node.sensors) && node.sensors.length) ? '센서 구성 없음'
+      : null;
+    if (issue) {
+      if (node && (node.transmit !== 'failed' || node.txIssue !== issue)) {
+        setNodes((cur) => cur.map((n) => (n.id === node.id ? { ...n, transmit: 'failed', txIssue: issue } : n)));
+      }
+      return { ok: false, sent: 0, skipped: true, error: issue };
     }
     // 워터마크 = 마지막 전송 시각(lastSentTs)만 사용. 없으면(신규 등록) 0 → 파일 전체 백필.
     // ⚠️ lastRx(=파일 수정시각/수신시각)로 잡지 말 것 — 데이터 타임스탬프가 그보다 과거면(예: 5월 데이터,
@@ -482,7 +496,13 @@ export function PulseProvider({ children }) {
     if (bad) return { ok: false, sent: 0, error: 'format', skipped: true }; // 깨진 동안 전송 보류
 
     const rows = r.rows || [];
-    if (!rows.length) return { ok: true, sent: 0 }; // 새 데이터 없음
+    if (!rows.length) {
+      // 새 데이터 없음 = 보낼 것이 남지 않음 → 전송 완료. (불러온 직후의 'queued' 가 여기서 확정된다)
+      if (node.transmit !== 'sent' || node.txIssue) {
+        setNodes((cur) => cur.map((n) => (n.id === node.id ? { ...n, transmit: 'sent', txIssue: null, buffer: 0 } : n)));
+      }
+      return { ok: true, sent: 0 };
+    }
 
     // 셀 → ingest value (정직한 raw 전송 — 품질 판정은 백엔드 담당).
     //   undefined(열 자체 없음=구조적 깨짐) → 스킵 표식
@@ -548,7 +568,7 @@ export function PulseProvider({ children }) {
       //    전송 성공에만 lastRx 를 걸면 백엔드 장애가 "센서 끊김"으로 둔갑한다.
       //    (reception.js 원칙 — 수신과 전송은 별개 축)
       const lastRx = Math.max(n.lastRx || 0, maxTs) || null;
-      const base = { ...n, lastRx, reception: receptionOf(lastRx, n.intervalMin) };
+      const base = { ...n, lastRx, reception: receptionOf(lastRx, n.intervalMin), txIssue: null };
       return allOk
         ? { ...base, lastSentTs: maxTs, transmit: 'sent', buffer: 0, rows24h: (n.rows24h || 0) + rows.length }
         : { ...base, transmit: 'retry', buffer: (n.buffer || 0) + rows.length }; // 실패 → 워터마크 유지, 다음에 재시도

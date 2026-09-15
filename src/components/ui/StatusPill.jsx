@@ -56,8 +56,18 @@ export function FormatErrorBadge() {
   );
 }
 
-/** 전송 상태 핀(pill). count 는 버퍼/재전송/실패 수. */
-export function TxPill({ transmit, count }) {
+/** 전송 상태 핀(pill). count 는 버퍼/재전송/실패 수. issue 가 있으면 "전송 불가"(사유는 title). */
+export function TxPill({ transmit, count, issue }) {
+  if (issue) {
+    return (
+      <span
+        title={issue}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ring-1 ring-inset tabular-nums ${TX_META.failed.pill}`}
+      >
+        전송 불가
+      </span>
+    );
+  }
   const meta = TX_META[transmit] || TX_META.queued;
   return (
     <span

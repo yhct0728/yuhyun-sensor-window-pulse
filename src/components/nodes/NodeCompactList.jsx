@@ -35,7 +35,7 @@ export default function NodeCompactList({ nodes, onOpenNode }) {
           <span className="text-[11.5px] text-zinc-400 tabular-nums hidden lg:block">
             {intervalLabel(n.intervalMin)} · <span title={timeAgo(n.lastRx)}>{fmtDateTime(n.lastRx)}</span>
           </span>
-          <TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} />
+          <TxPill transmit={n.transmit} count={n.transmit === 'queued' ? n.buffer : n.retry} issue={n.txIssue} />
           <ChevronRight size={14} className="text-zinc-300 dark:text-zinc-600 shrink-0" />
         </button>
       ))}
