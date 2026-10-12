@@ -38,22 +38,27 @@ test.describe('instrumentCatalog — 프로파일 조회', () => {
 
   test('Phase 2 — point/channels/outputs 헬퍼', () => {
     expect(profilePoint('strut')).toBe('single');
-    expect(profilePoint('tilt')).toBe('siblings');
+    expect(profilePoint('wind')).toBe('siblings');
     expect(profilePoint('___nope___')).toBeNull();
-    expect(profileOutputs('tilt')).toEqual([
-      { suffix: 'X', raw: ['A0', 'A180'] },
-      { suffix: 'Y', raw: ['B0', 'B180'] },
+    expect(profileOutputs('wind')).toEqual([
+      { suffix: 'WD', raw: ['WD'] },
+      { suffix: 'WS', raw: ['WS'] },
     ]);
-    expect(profileChannels('tilt')).toEqual([
-      { key: 'A0', col: 0 }, { key: 'A180', col: 1 }, { key: 'B0', col: 2 }, { key: 'B180', col: 3 },
+    expect(profileChannels('wind')).toEqual([
+      { key: 'WD', col: 0 }, { key: 'WS', col: 1 },
     ]);
     expect(profileOutputs('strut')).toBeNull();
   });
 
+  test('경사계(tilt)는 미러 밖 — 2열 = 1대(X·Y) 일반 값 센서(ADR-0022, tilt-pairs.spec.js)', () => {
+    expect(profileOf('tilt')).toBeNull();
+    expect(isRawEnabled('tilt')).toBe(false);
+  });
+
   test('Phase 2 — 헬퍼 사본 반환(원본 불변)', () => {
-    const o = profileOutputs('tilt'); o[0].raw.push('ZZ'); o.push({});
-    expect(profileOutputs('tilt')).toEqual([
-      { suffix: 'X', raw: ['A0', 'A180'] }, { suffix: 'Y', raw: ['B0', 'B180'] },
+    const o = profileOutputs('wind'); o[0].raw.push('ZZ'); o.push({});
+    expect(profileOutputs('wind')).toEqual([
+      { suffix: 'WD', raw: ['WD'] }, { suffix: 'WS', raw: ['WS'] },
     ]);
     const c = profileChannels('survey_3d'); c.pop();
     expect(profileChannels('survey_3d')).toHaveLength(3);
@@ -99,16 +104,6 @@ test.describe('resolveSensors — multiraw 그룹화', () => {
     expect(r.sensors[0].rawKeys).toEqual(['A', 'B', 'C']);
   });
 
-  test('tilt 4열 → 형제 2센서(BT-X, BT-Y)', () => {
-    const r = resolveSensors(analysisOf(['DateTime', 'A0', 'A180', 'B0', 'B180'], ['t', '1', '2', '3', '4']), { sensorType: 'tilt', nodeId: 'T1' });
-    expect(r.sensorCount).toBe(2);
-    const [x, y] = r.sensors;
-    expect(x.code).toBe('BT-X'); expect(x.role).toBe('multiraw');
-    expect(x.columns).toEqual([1, 2]); expect(x.rawKeys).toEqual(['A0', 'A180']);
-    expect(y.code).toBe('BT-Y');
-    expect(y.columns).toEqual([3, 4]); expect(y.rawKeys).toEqual(['B0', 'B180']);
-  });
-
   test('survey_3d 3열 → 형제 3센서(TG-N/E/Z, 각 1 raw)', () => {
     const r = resolveSensors(analysisOf(['DateTime', 'N', 'E', 'Z'], ['t', '1', '2', '3']), { sensorType: 'survey_3d', nodeId: 'S1' });
     expect(r.sensors.map((s) => s.code)).toEqual(['TG-N', 'TG-E', 'TG-Z']);
@@ -130,9 +125,9 @@ test.describe('resolveSensors — multiraw 그룹화', () => {
     expect(r.sensors.map((s) => s.rawKeys)).toEqual([['T'], ['H']]);
   });
 
-  test('tilt 인데 열 부족(3열) → 경고 + 형제 분할 안 함', () => {
-    const r = resolveSensors(analysisOf(['DateTime', 'A0', 'A180'], ['t', '1', '2']), { sensorType: 'tilt', nodeId: 'T1' });
-    expect(r.sensors.every((s) => !/^BT-[XY]$/.test(s.code))).toBe(true);
+  test('survey_3d 인데 열 부족(값 2열) → 경고 + 형제 분할 안 함', () => {
+    const r = resolveSensors(analysisOf(['DateTime', 'N', 'E'], ['t', '1', '2']), { sensorType: 'survey_3d', nodeId: 'S1' });
+    expect(r.sensors.every((s) => s.role !== 'multiraw')).toBe(true);
     expect(r.integrity.some((i) => i.code === 'siblings-col-out-of-range')).toBe(true);
   });
 });
@@ -181,43 +176,5 @@ test.describe('syncNode — multiraw raw_channels 방출', () => {
     const m1 = call.measurements[1];
     expect(m1.raw_channels).toEqual([{ key: 'A', raw: 8050 }, { key: 'B', raw: 7945 }, { key: 'C', raw: 8150 }]);
     expect(m1.value).toBeUndefined();
-  });
-
-  test('건물경사계(tilt) → 형제 2센서 각각 raw_channels 전송(BT-X, BT-Y)', async ({ page }) => {
-    await page.addInitScript(() => {
-      try { window.localStorage.setItem('pulse:guideSeen', '1'); } catch {}
-      window.__ingest = [];
-      const header = ['DateTime', 'A0', 'A180', 'B0', 'B180'];
-      const sample = ['2026-06-27 09:00:00', '10', '20', '30', '40'];
-      window.electronAPI = {
-        getDefaultFolder: async () => 'C:\\pulse', getRootFolder: async () => 'C:\\pulse\\incoming',
-        setRootFolder: async (p) => p, resetToDefault: async () => 'C:\\pulse',
-        validateFolder: async () => ({ exists: true, accessible: true, txtCount: 1, error: null }),
-        pickFolder: async () => null,
-        scanFolder: async () => [
-          { fileName: '건물경사계_T1.txt', fullPath: 'C:\\pulse\\incoming\\건물경사계_T1.txt', rowCount: 10, lastModified: '2026-06-27T09:00:00Z', header, sampleRow: sample },
-        ],
-        analyzeFile: async () => ({ encoding: 'UTF-8', rowCount: 10, columnCount: 5, delimiter: '쉼표 (,)', intervalGuess: 60, preview: [header, sample] }),
-        listNodes: async () => ({ ok: true, status: 200, nodes: [] }),
-        registerNode: async () => ({ ok: true, status: 201 }),
-        readMeasurements: async () => ({ ok: true, columnCount: 5, head: header, sample, rows: [
-          { at: '2026-06-27 09:00', ts: 1000, cells: ['2026-06-27 09:00', '10', '20', '30', '40'] },
-        ] }),
-        ingest: async (p) => { window.__ingest.push(p); return { ok: true, status: 200 }; },
-      };
-    });
-    await page.goto('/');
-    await page.getByRole('button', { name: /감지 · 등록/ }).first().click();
-    await page.getByRole('button', { name: '등록', exact: true }).first().click();
-    await page.getByRole('button', { name: '다음' }).click();
-    await page.getByRole('button', { name: '다음' }).click();
-    await page.getByRole('button', { name: '등록 완료' }).click();
-    await page.getByRole('button', { name: '새로고침' }).click();
-    await page.waitForFunction(() => (window.__ingest || []).length >= 2);
-    const calls = await page.evaluate(() => window.__ingest);
-    const byCode = Object.fromEntries(calls.map((c) => [c.channelCode, c.measurements[0].raw_channels]));
-    expect(Object.keys(byCode).sort()).toEqual(['BT-X', 'BT-Y']);
-    expect(byCode['BT-X']).toEqual([{ key: 'A0', raw: 10 }, { key: 'A180', raw: 20 }]);
-    expect(byCode['BT-Y']).toEqual([{ key: 'B0', raw: 30 }, { key: 'B180', raw: 40 }]);
   });
 });

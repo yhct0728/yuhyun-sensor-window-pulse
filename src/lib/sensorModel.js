@@ -8,6 +8,7 @@
 //   이름형 W-3,W-4    → 1열 = 1센서(이름=코드) (N개)
 //   깊이형 0.0M…40.0M → 전체 = 1센서(깊이 프로파일), 깊이는 ingest depthLabel  (1개)
 //   값+온도형 값,온도 → 값=센서, 온도는 부속(센서 아님)                        (값 개수)
+//   경사계(tilt)      → 1열 = 1센서, 단 2열씩 1대(X·Y)로 묶어 이름 붙임          (N개, N/2대)
 //
 // 이 sensors[] 가 등록(channels 개수)과 전송(ingest 열 매핑)의 공통 소스다.
 // → 등록한 센서 수와 실제 보내는 데이터 구조가 구조적으로 항상 일치한다.
@@ -21,6 +22,9 @@ import { sensorChannelCode, guessSensorTypeFromCode } from './backendApi.js';
 import { profileRawKeys, isRawEnabled, profilePoint, profileChannels, profileOutputs } from './instrumentCatalog.js';
 
 const TEMP_RE = /(temp|온도|_t$|\(℃\)|\(°c\))/i;
+
+// 경사계(tilt)는 값 열 2개가 1대(X·Y)다 — 4열 = 2대, 6열 = 3대 (ADR-0022).
+const TILT_AXES = ['X', 'Y'];
 
 function looksHeader(row) {
   if (!row || row.length < 2) return false;
@@ -145,6 +149,24 @@ export function resolveSensors(analysis, opts = {}) {
           const code = prefix ? `${prefix}-${seq}` : headerCode || `CH${i}`;
           return { code, role: 'value', ch: i, seq, sensorType: chType, columns: [i], tempColumn: t ?? null };
         });
+        // ★경사계 쌍 묶기: 전 채널이 경사계면 열을 2개씩 끊어 1대(X·Y)로 이름 붙인다.
+        //   바뀌는 건 코드뿐 — 값은 열마다 그대로 보낸다. 종류가 섞였거나 홀수 열이면 묶지 않는다.
+        if (sensors.length && sensors.every((s) => s.sensorType === 'tilt')) {
+          const n = TILT_AXES.length;
+          if (sensors.length % n === 0) {
+            const prefix = sensorChannelCode('tilt');
+            sensors = sensors.map((s, idx) => ({ ...s, code: `${prefix}-${Math.floor(idx / n) + 1}-${TILT_AXES[idx % n]}` }));
+            integrity.push({
+              level: 'info', code: 'tilt-pairs',
+              message: `경사계 ${sensors.length / n}대로 등록합니다 — 값 열을 ${n}개씩 묶어 ${TILT_AXES.join('·')} 로 봅니다.`,
+            });
+          } else {
+            integrity.push({
+              level: 'warn', code: 'tilt-odd-columns',
+              message: `경사계는 값 열 ${n}개가 1대(${TILT_AXES.join('·')})인데 값 열이 ${sensors.length}개입니다 — 묶지 않고 열마다 센서로 등록합니다. 파일을 확인하세요.`,
+            });
+          }
+        }
         if (tempCols.length) {
           integrity.push({
             level: 'info', code: 'temp-aux',

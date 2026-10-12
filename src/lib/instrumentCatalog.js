@@ -7,6 +7,7 @@
 //     (예: anchor.channels[0].col=0 → 파일 2번째 열 = 1-indexed 1열. resolveSensors 가 col+1 로 매핑.)
 //   약어(접두)는 미러에 두지 않고 backendApi.sensorChannelCode(=SENSOR_TYPES.ch) 단일 소스 사용.
 //   미러에 없는 키(water_level·crack·groundwater·rainfall·strain·settlement·optical)는 기존 value 경로.
+//   tilt(경사계)도 미러 밖 — 값 열 2개 = 1대(X·Y)인 일반 값 센서다(sensorModel, ADR-0022).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** @type {Record<string, {point:'single'|'siblings', channels:{key:string,col:number}[], outputs?:{suffix:string,raw:string[]}[]}>} */
@@ -19,8 +20,6 @@ export const INSTRUMENT_PROFILES = {
   pore_pressure: { point: 'single', channels: [{ key: 'R', col: 0 }] },
 
   // point:'siblings' — outputs[] 대로 형제 센서로 분할(각 형제 = raw 부분집합).
-  tilt:          { point: 'siblings', channels: [{ key: 'A0', col: 0 }, { key: 'A180', col: 1 }, { key: 'B0', col: 2 }, { key: 'B180', col: 3 }],
-                   outputs: [{ suffix: 'X', raw: ['A0', 'A180'] }, { suffix: 'Y', raw: ['B0', 'B180'] }] },
   survey_3d:     { point: 'siblings', channels: [{ key: 'N', col: 0 }, { key: 'E', col: 1 }, { key: 'Z', col: 2 }],
                    outputs: [{ suffix: 'N', raw: ['N'] }, { suffix: 'E', raw: ['E'] }, { suffix: 'Z', raw: ['Z'] }] },
   wind:          { point: 'siblings', channels: [{ key: 'WD', col: 0 }, { key: 'WS', col: 1 }],
