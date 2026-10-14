@@ -461,10 +461,14 @@ export function PulseProvider({ children }) {
    * 한 노드의 신규 측정값을 백엔드로 전송 (증분: 마지막 전송 시각 이후 행만).
    *   파일 신규행 읽기(files:read-measurements) → 센서별 measurements 구성 → ingest POST.
    *   전부 성공해야 워터마크(lastSentTs)를 전진 → 실패 시 다음 주기 재시도(중복/누락 없음).
+   *   opts.fromStart = "처음부터 다시 보내기"(ADR-0023): 워터마크를 무시하고 파일 전체를 보낸다.
+   *     백엔드 ingest 가 멱등이라 서버에 없는 시각만 채워지고 이미 있는 값은 바뀌지 않는다.
    * @param {object} node  스토어 노드 객체
-   * @returns {Promise<{ok:boolean, sent:number, error?:string, skipped?:boolean}>}
+   * @param {{fromStart?:boolean}} [opts]
+   * @returns {Promise<{ok:boolean, sent:number, inserted?:number|null, error?:string, skipped?:boolean}>}
+   *   inserted = 서버가 새로 저장한 건수(응답에 있을 때만, 모르면 null)
    */
-  const syncNode = useCallback(async (node) => {
+  const syncNode = useCallback(async (node, opts = {}) => {
     // 전송 전제조건 — 못 갖췄으면 "전송 불가"와 이유를 남긴다. 조용히 건너뛰면 화면이 직전 상태
     //   (예: 전송 완료)에 멈춰 아무도 모른다(2026-09 실사고: 종류가 빈 노드 5개가 멈춘 채 방치).
     const issue = !node?.sourceFile ? '원본 파일 없음'
@@ -480,7 +484,7 @@ export function PulseProvider({ children }) {
     // 워터마크 = 마지막 전송 시각(lastSentTs)만 사용. 없으면(신규 등록) 0 → 파일 전체 백필.
     // ⚠️ lastRx(=파일 수정시각/수신시각)로 잡지 말 것 — 데이터 타임스탬프가 그보다 과거면(예: 5월 데이터,
     //    파일은 오늘 생성) 전부 제외돼 0건이 됨. 백엔드 ingest 가 멱등이라 백필 겹침은 안전.
-    const since = node.lastSentTs ?? 0;
+    const since = opts.fromStart ? 0 : (node.lastSentTs ?? 0);
     const r = await folderApi.readMeasurements(node.sourceFile, since);
     if (!r?.ok) return { ok: false, sent: 0, error: r?.error || 'read' };
 
@@ -524,6 +528,7 @@ export function PulseProvider({ children }) {
     );
     let allOk = true;
     let unconfigured = false;
+    let inserted = 0; // 서버가 새로 저장한 건수 합 — 응답에 없는 센서가 하나라도 있으면 null(모름)
     for (const s of node.sensors) {
       if (inactive.has(ingestSensorCode(node.id, s.code))) continue; // inactive → 전송 skip
       let measurements;
@@ -558,8 +563,11 @@ export function PulseProvider({ children }) {
       const res = await folderApi.ingestBackend({ nodeId: node.id, channelCode: s.code, measurements });
       if (res?.error === 'unconfigured' || res?.error === 'no_electron') { unconfigured = true; break; }
       if (!res?.ok) allOk = false;
+      else if (inserted != null) inserted = typeof res.inserted === 'number' ? inserted + res.inserted : null;
     }
     if (unconfigured) return { ok: false, sent: 0, error: 'unconfigured' }; // 상태 변경 없음
+    // 다시 보내기 실패 — 평소 전송 흐름(버퍼·워터마크)은 멀쩡하므로 상태를 건드리지 않는다.
+    if (opts.fromStart && !allOk) return { ok: false, sent: 0 };
 
     const maxTs = rows[rows.length - 1].ts;
     setNodes((cur) => cur.map((n) => {
@@ -569,11 +577,12 @@ export function PulseProvider({ children }) {
       //    (reception.js 원칙 — 수신과 전송은 별개 축)
       const lastRx = Math.max(n.lastRx || 0, maxTs) || null;
       const base = { ...n, lastRx, reception: receptionOf(lastRx, n.intervalMin), txIssue: null };
+      // 다시 보낸 행은 새로 받은 게 아니므로 수신 카운트(rows24h)에 더하지 않는다.
       return allOk
-        ? { ...base, lastSentTs: maxTs, transmit: 'sent', buffer: 0, rows24h: (n.rows24h || 0) + rows.length }
+        ? { ...base, lastSentTs: maxTs, transmit: 'sent', buffer: 0, rows24h: (n.rows24h || 0) + (opts.fromStart ? 0 : rows.length) }
         : { ...base, transmit: 'retry', buffer: (n.buffer || 0) + rows.length }; // 실패 → 워터마크 유지, 다음에 재시도
     }));
-    return { ok: allOk, sent: allOk ? rows.length : 0 };
+    return { ok: allOk, sent: allOk ? rows.length : 0, inserted: allOk ? inserted : null };
   }, []);
 
   /**

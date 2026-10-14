@@ -554,7 +554,8 @@ export async function readMeasurements(fullPath, sinceTs = 0) {
 /**
  * 측정값을 백엔드로 전송 (POST /api/pulse/v1/ingest). sensorCode = {node_code}-{code}.
  * @param {{nodeId, channelCode, measurements, rawFile?}} p
- * @returns {Promise<{ok:boolean, status?:number, error?:string}>}
+ * @returns {Promise<{ok:boolean, status?:number, error?:string, inserted?:number}>}
+ *   inserted = 서버가 새로 저장한 건수(이미 있던 시각은 제외). 응답에 없으면 생략.
  */
 export async function ingestToBackend(p) {
   const cfg = readConfig();
@@ -575,8 +576,12 @@ export async function ingestToBackend(p) {
       console.warn(`[nodes:ingest] ${body.sensorCode} → ${res.status} ${error}`);
       return { ok: false, status: res.status, error };
     }
-    console.log(`[nodes:ingest] ${body.sensorCode} → ${res.status} OK (${body.measurements.length}건)`);
-    return { ok: true, status: res.status };
+    // 응답 본문은 참고용 — 못 읽어도 전송은 성공이다(여기서 던지면 아래 catch 가 'network' 실패로 둔갑시킨다).
+    let data = null;
+    try { data = await res.json(); } catch { /* 본문 없음 */ }
+    const inserted = Number.isFinite(data?.inserted) ? data.inserted : undefined;
+    console.log(`[nodes:ingest] ${body.sensorCode} → ${res.status} OK (${body.measurements.length}건${inserted === undefined ? '' : ` · 새로 저장 ${inserted}건`})`);
+    return { ok: true, status: res.status, inserted };
   } catch (err) {
     console.warn(`[nodes:ingest] ${body.sensorCode} network: ${err?.message || err}`);
     return { ok: false, error: 'network' };

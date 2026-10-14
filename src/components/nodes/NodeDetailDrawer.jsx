@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import React, { useEffect, useState } from 'react';
 import {
-  X, Cpu, Activity, UploadCloud, ScrollText, RefreshCw, Trash2, Wifi, AlertCircle, MapPin, Save, CopyPlus,
+  X, Cpu, Activity, UploadCloud, ScrollText, RefreshCw, Trash2, Wifi, AlertCircle, MapPin, Save, CopyPlus, History,
 } from 'lucide-react';
 import Button from '../ui/Button.jsx';
 import Select from '../ui/Select.jsx';
@@ -37,16 +37,23 @@ export default function NodeDetailDrawer({ node, onClose }) {
   const [savingInterval, setSavingInterval] = useState(false);
   const [savingRanges, setSavingRanges] = useState(false);
   const [savingMon, setSavingMon] = useState(false);
+  const [resending, setResending] = useState(false);
 
+  // 화면 상태 초기화는 **다른 노드를 열 때만**. 노드 객체는 전송·자동 확인 때마다 새로 만들어지므로
+  //   객체에 걸면 버튼을 누를 때마다 탭이 "채널 스트림"으로 튄다.
+  const nodeId = node?.id ?? null;
   useEffect(() => {
-    if (!node) return;
     setTab('stream');
     setConfirming(false);
     setDeleting(false);
+  }, [nodeId]);
+
+  useEffect(() => {
+    if (!nodeId) return;
     const onKey = (e) => e.key === 'Escape' && onClose?.();
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [node, onClose]);
+  }, [nodeId, onClose]);
 
   if (!node) return null;
 
@@ -136,6 +143,27 @@ export default function NodeDetailDrawer({ node, onClose }) {
     else if (r?.error === 'no_sensor_type') showToast('노드 대표 계측기 종류가 없어 저장할 수 없습니다');
     else if (r?.error === 'unconfigured') showToast(`${channelCode} 종류 변경(메모리) · 백엔드 미설정`);
     else showToast('채널 종류 변경(메모리) · 백엔드 저장 실패');
+  };
+
+  // 처음부터 다시 보내기 → 파일 전체 재전송(ADR-0023). 백엔드 ingest 가 멱등이라 서버에 없는 시각만 채워진다.
+  const onResendAll = async () => {
+    setResending(true);
+    let r;
+    try {
+      r = await syncNode(node, { fromStart: true });
+    } catch {
+      r = { ok: false };
+    } finally {
+      setResending(false); // 무슨 일이 있어도 "보내는 중" 해제
+    }
+    const long = { duration: 6000 }; // 건수를 읽을 시간
+    if (r?.skipped) showToast(r.error === 'format' ? '원본 형식이 깨져 보낼 수 없습니다' : `보낼 수 없습니다 — ${r.error}`);
+    else if (r?.error === 'unconfigured') showToast('백엔드 미설정 — 설정에서 연결하세요');
+    else if (!r?.ok) showToast('다시 보내기 실패 — 잠시 후 다시 시도하세요', long);
+    else if (!r.sent) showToast('파일에 보낼 데이터가 없습니다');
+    else if (r.inserted == null) showToast(`파일 전체 ${r.sent}행을 다시 보냈습니다`, long);
+    else if (r.inserted === 0) showToast(`파일 전체 ${r.sent}행을 다시 보냈습니다 · 빠진 값이 없었습니다(서버에 이미 전부 있음)`, long);
+    else showToast(`파일 전체 ${r.sent}행을 다시 보냈습니다 · 새로 채워진 값 ${r.inserted}건`, long);
   };
 
   // 센서 생명주기 변경 (정상/비활성) → 백엔드 PATCH. inactive 는 백엔드 평균·offline 추론에서 제외(sticky).
@@ -283,6 +311,8 @@ export default function NodeDetailDrawer({ node, onClose }) {
                 else showToast(r.sent ? `측정값 ${r.sent}건 전송` : '전송할 새 데이터가 없습니다');
               }}
               onFlush={() => { flushNode(node.id); showToast('버퍼를 비웠습니다'); }}
+              onResendAll={onResendAll}
+              resending={resending}
             />
           )}
           {tab === 'log' && <DiagnosticLog node={node} />}
@@ -552,7 +582,7 @@ function DepthProfile({ node }) {
 }
 
 // ── 전송 큐 ──────────────────────────────────────────────────────────────────
-function TransmitPanel({ node, ingest, onRetry, onFlush }) {
+function TransmitPanel({ node, ingest, onRetry, onFlush, onResendAll, resending }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
@@ -595,6 +625,19 @@ function TransmitPanel({ node, ingest, onRetry, onFlush }) {
         </Button>
         <Button variant="secondary" size="md" onClick={onFlush} className="flex-1">
           <Trash2 size={14} /> 버퍼 비우기
+        </Button>
+      </div>
+
+      {/* 빠진 데이터 채우기 — "지금 재전송"은 새 행만 보낸다. 지난 행이 서버에 빠졌을 때 쓰는 버튼(ADR-0023). */}
+      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2.5 flex items-center gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] text-zinc-700 dark:text-zinc-300">빠진 데이터 채우기</div>
+          <div className="text-[11px] text-zinc-400">
+            파일 전체를 다시 보냅니다. 서버에 없는 시각만 채워지고, 이미 있는 값은 바뀌지 않습니다.
+          </div>
+        </div>
+        <Button variant="secondary" size="md" onClick={onResendAll} disabled={resending} className="shrink-0">
+          <History size={14} /> {resending ? '보내는 중…' : '처음부터 다시 보내기'}
         </Button>
       </div>
       <p className="text-[11px] text-zinc-400">전송 페이로드엔 노드 ID·채널·타임스탬프·값만 담깁니다. 현장 stamp 는 백엔드가 부여합니다.</p>
